@@ -1548,6 +1548,10 @@
 		"Assets/web3/balance": {
 			js: "{{Assets}}/js/tools/web3/balance.js",
 			css: "{{Assets}}/css/tools/web3/balance.css"
+		},
+		"Assets/web3/coin/admin": {
+			js: "{{Assets}}/js/tools/web3/coin/admin.js",
+			css: "{{Assets}}/css/tools/web3/coin/admin.css"
 		}
 	});
     
