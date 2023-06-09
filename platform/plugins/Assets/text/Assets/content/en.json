@@ -641,7 +641,7 @@
 			},
 			"createPool": "Create Pool",
 			"produce": "Produce",
-			
+			"loading": "Loading",
 			"viewInstancesList": "Refresh List"
 		}
 	},

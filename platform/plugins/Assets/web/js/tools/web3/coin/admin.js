@@ -61,6 +61,7 @@
 
 var Assets = Q.Assets;
 var Users = Q.Users;
+
 /**
  * Show balance of tokens by chain and token
  * @class Assets web3/balance
@@ -100,25 +101,14 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 	if (Q.isEmpty(state.chainId)) {
 		return console.warn("chainId required!");
 	}
-	
-	
-	//	tool.refresh();
 
-	var p = Q.pipe(['stylesheet', 'text'], function (params, subjects) {
-		tool.text = params.text[1];
-		console.log(tool.text);
-		tool.refresh();
-	});
-	Q.addStylesheet("{{Assets}}/css/tools/web3/coin/admin.css", p.fill('stylesheet'), { slotName: 'Assets' });
-	Q.Text.get('Assets/content', p.fill('text'));
-	//Q.addStylesheet("{{Assets}}/css/tools/NFT/seriesPreview.css", pipe.fill('stylesheet'), { slotName: 'Assets' });
+	tool.refresh();
 	
 },
 
 { // default options here
 	abiPath: "Assets/templates/R1/CommunityCoin/contract",	// for test predefined in local app.json
 	abiPathPoolF: "Assets/templates/R1/CommunityStakingPool/factory",	// for test predefined in local app.json
-	userId: Q.Users.loggedInUserId(),
 	chainId: null,
 	communityAddress: null,
 	communityCoinAddress: null,
@@ -130,21 +120,18 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 	refresh: function () {
 		var tool = this;
 		var state = tool.state;
-		var $toolElement = $(this.element);
 		
 		Q.Template.render("Assets/web3/coin/admin", {
 			chainId: state.chainId,
 			chains: Assets.Web3.chains
 		}, function (err, html) {
 			Q.replace(tool.element, html);
-			$toolElement.activate();
+			//$toolElement.activate();
 			
 			//tool.checkOwner();
 			tool.refreshPoolList();
 			
-			
 			$('.Assets_web3_coin_admin_produce', tool.element).off(Q.Pointer.click).on(Q.Pointer.fastclick, function(){
-				
 				Q.invoke({
 					title: tool.text.coin.admin.createPool,
 					template: {
@@ -158,47 +145,62 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 						}
 					},
 					className: 'Assets_web3_coin_admin_create',
-					trigger: Q.info.isMobile ? tool.element : null,
-					onActivate: function () {
-						// if opened dialog - first argument is dialog element
-						state.mainDialog = arguments[0];
-						if (!(state.mainDialog instanceof $)) {
-							state.mainDialog = $(state.mainDialog);
+					trigger: tool.element,
+					onActivate: function ($element) {
+						if (!($element instanceof $)) {
+							$element = $(arguments[2]);
 						}
-						$("button[name=testFill]", state.mainDialog).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
-							state.mainDialog.find("input[name=tokenErc20]").val("0x00010100597b8c232656D76a319b6FF696Ed3293");
-							state.mainDialog.find("input[name=duration]").val("365");
-							state.mainDialog.find("input[name=bonusTokenFraction]").val("0");
-							state.mainDialog.find("input[name=popularToken]").val("0x0000000000000000000000000000000000000000");
-							state.mainDialog.find("input[name=donations]").val("[]");
-							state.mainDialog.find("input[name=rewardsRateFraction]").val("0");
-							state.mainDialog.find("input[name=numerator]").val("1");
-							state.mainDialog.find("input[name=denominator]").val("1");
+						
+						$("button[name=testFill]", $element).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
+							$element.find("input[name=tokenErc20]").val("0x00010100597b8c232656D76a319b6FF696Ed3293");
+							$element.find("input[name=duration]").val("365");
+							$element.find("input[name=bonusTokenFraction]").val("0");
+							$element.find("input[name=popularToken]").val("0x0000000000000000000000000000000000000000");
+							$element.find("input[name=donations]").val("[]");
+							$element.find("input[name=rewardsRateFraction]").val("0");
+							$element.find("input[name=numerator]").val("1");
+							$element.find("input[name=denominator]").val("1");
 						});
 						// save by URL
-						$("button[name=create]", state.mainDialog).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
+						$("button[name=create]", $element).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
+							var $this = $(this);
+							
+							var _close = function(){
+								var isDialog = $element.find('.Q_dialog_content').length;
+								var columns = Q.Tool.from($this.closest(".Q_columns_tool"), "Q/columns");
+								var $column = $this.closest('.Q_columns_column');	
+								
+								if (isDialog) {
+									Q.Dialogs.pop();
+								} else if (columns) {
+									var min = parseInt($column.data('index'));
+									columns.close({min: min}, null, {animation: {duration: 0}});
+								}
+								
+							}
+							
 							e.preventDefault();
 							e.stopPropagation();
 							
-							state.mainDialog.addClass("Q_working");
+							$element.addClass("Q_working");
 
 							var vals = {};
-							vals.tokenErc20 = state.mainDialog.find("input[name=tokenErc20]").val();
-							vals.duration = state.mainDialog.find("input[name=duration]").val();
-							vals.bonusTokenFraction = state.mainDialog.find("input[name=bonusTokenFraction]").val();
-							vals.popularToken = state.mainDialog.find("input[name=popularToken]").val();
-							vals.donations = state.mainDialog.find("input[name=donations]").val();
-							vals.rewardsRateFraction = state.mainDialog.find("input[name=rewardsRateFraction]").val();
-							vals.numerator = state.mainDialog.find("input[name=numerator]").val();
-							vals.denominator = state.mainDialog.find("input[name=denominator]").val();
-							console.log(vals);
+							vals.tokenErc20 = $element.find("input[name=tokenErc20]").val();
+							vals.duration = $element.find("input[name=duration]").val();
+							vals.bonusTokenFraction = $element.find("input[name=bonusTokenFraction]").val();
+							vals.popularToken = $element.find("input[name=popularToken]").val();
+							vals.donations = $element.find("input[name=donations]").val();
+							vals.rewardsRateFraction = $element.find("input[name=rewardsRateFraction]").val();
+							vals.numerator = $element.find("input[name=numerator]").val();
+							vals.denominator = $element.find("input[name=denominator]").val();
+							
 							// simple check on Q.empty
 							for (var i in vals) {
 								
 								if (Q.isEmpty(vals[i])) {
-									state.mainDialog.find(".form-group").find("label, input, small").removeClass('text-danger');
-									state.mainDialog.find(`input[name=${i}]`).closest('.form-group').find("label, input, small").addClass('text-danger');
-									state.mainDialog.removeClass("Q_working");
+									$element.find(".form-group").find("label, input, small").removeClass('text-danger');
+									$element.find(`input[name=${i}]`).closest('.form-group').find("label, input, small").addClass('text-danger');
+									$element.removeClass("Q_working");
 									return console.warn(`"${i}" value can not be empty`);
 								}
 							}
@@ -213,11 +215,10 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 							).then(function (_contract) {
 								contract = _contract;
 								// stupid thing
-								// we cant by pass in etherjs vaklue like "[]". is not array ,because -  Array.isArray("[]") => false
+								// we cant by pass in etherjs value like "[]". is not array ,because -  Array.isArray("[]") => false
 								// so need to convert to array "[]".split(',')
 								vals.donations = "[]" == vals.donations ?[]:vals.donations.split(',');
 							
-								
 								return contract.produce(
 									vals.tokenErc20, //address tokenErc20,
 									vals.duration, //uint64 duration,
@@ -232,8 +233,12 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 							}).then(function (tx) {
 								return tx.wait();
 							}).then(function (receipt) {
-								console.log(receipt);
-								tool.refreshPoolList();
+								
+								if (receipt.status == 0) {
+									throw 'Smth unexpected';
+								}
+								tool.refreshPoolList();	
+								
 							}).catch(function (err) {
                             
                                         
@@ -241,9 +246,12 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 									content: Q.grabMetamaskError(err, [contract]),
 									timeout: 5
 								});
-                                        
+								
+								
+								
 							}).finally(function(){
-								state.mainDialog.removeClass("Q_working");
+								$element.removeClass("Q_working");
+								_close();
 							});
 							
 						});
@@ -252,36 +260,6 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 						
 			});
 
-//Q.Users.get( state.userId, function (err, user) {
-//	console.log(user);
-//	console.log(user.xids);
-//   if (user.xids) {
-//      tool.xids = user.xids;
-//      var count = 0;
-//      for (var chainId in user.xids) {
-//         var optionElement = document.createElement(option);
-//         optionElement.value = JSON.stringify([chainId, user.xids[chainId]);
-//         optionElement.innerHTML = Q.getObject(
-//             ["Q", "Users", "chains", "web3", chainId]
-//         );
-//         tool.selectElement.appendChild(optionElement);
-//         ++count;
-//      }
-//      if (count == 1) {
-//         option.setAttribute('selected', true);
-//      }
-//   }
-//});
-
-//			if (state.chainId) {
-//				tool.balanceOf();
-//			} else {
-//				$("select[name=chains]", tool.element).on("change", function () {
-//					state.chainId = $(this).val();
-//					$("select[name=tokens]", tool.element).addClass("Q_disabled");
-//					tool.balanceOf();
-//				}).trigger("change");
-//			}
 		});
 	},
 	refreshPoolList: function(){
@@ -328,61 +306,21 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 				
 				return Promise.all(p);
 			}
-//			console.log("tool.loggedInUserXid=", tool.loggedInUserXid);
-//			console.log("account=", account);
-//			if (account != tool.loggedInUserXid) {
-//				let objContainer = $(tool.element).find(".Assets_web3_coin_admin_formContainer");
-//				//objContainer.addClass("Users_web3_notAuthorized");
-//				objContainer.addClass("Q_disabled");
-//			}
 
-//                    if (Q.Users.Web3.getSelectedXid().toLowerCase() == account.toLowerCase()) {
-//                        objContainer.show();
-//                    } else {
-//                        objContainer.hide();
-//                    }
 		}).then(function (instanceInfos) {	
 			if (Q.isEmpty(instanceInfos)) {
 				
 			} else {
-				var table = $toolElement.find('.Assets_web3_coin_admin_poolsList');
-				var thead = $('<thead>');
-				var tbody = $('<tbody>');
-				table.html('');
-				thead.append(`
-					<tr>
-					<th scope="col">#</th>
-					<th scope="col">${tool.text.coin.admin.form.labels.tokenErc20}</th>
-					<th scope="col">${tool.text.coin.admin.form.labels.duration}</th>
-					<th scope="col">${tool.text.coin.admin.form.labels.bonusTokenFraction}</th>
-					<th scope="col">${tool.text.coin.admin.form.labels.popularToken}</th>
-					
-					<th scope="col">${tool.text.coin.admin.form.labels.rewardsRateFraction}</th>
-					<th scope="col">${tool.text.coin.admin.form.labels.numerator}</th>
-					<th scope="col">${tool.text.coin.admin.form.labels.denominator}</th>
-					</tr>
-				`);
-					//<th scope="col">${tool.text.coin.admin.form.labels.donations}</th>
-				table.append(thead);
-				
+				var $tbody = $toolElement.find('.Assets_web3_coin_admin_poolsList tbody');
+				$tbody.html('');
 				instanceInfos.forEach(function(i, index){
-					tbody.append(`
-					<tr>
-					<th scope="row">${index+1}</th>
-					<td>${i.tokenErc20}</td>
-					<td>${i.duration}</td>
-					<td>${i.bonusTokenFraction}</td>
-					<td>${i.popularToken}</td>
+					Q.Template.render('Assets/web3/coin/admin/pools/row', {index: index+1, i:i}, function(err, html){
+						$tbody.append(html);
+					});
 					
-					<td>${i.rewardsRateFraction}</td>
-					<td>${i.numerator}</td>
-					<td>${i.denominator}</td>
-					</tr>
-					`);
 					//<td>${i.donations}</td>
 				});
-				table.append(tbody);
-
+				
 			}
 		}).finally(function(){
 			$poolListContainer.removeClass("Q_working");
@@ -445,7 +383,22 @@ Q.Template.set("Assets/web3/coin/admin",
 	<div class="Assets_web3_coin_admin_poolsContainer">
 		<h3>List by pools</h3>
 		<table class="Assets_web3_coin_admin_poolsList table ">
-		<tr class="Assets_web3_coin_admin_loading"><td>Loading ...</td></tr>
+		<thead>
+		<tr>
+			<th scope="col">#</th>
+			<th scope="col">{{coin.admin.form.labels.tokenErc20}}</th>
+			<th scope="col">{{coin.admin.form.labels.duration}}</th>
+			<th scope="col">{{coin.admin.form.labels.bonusTokenFraction}}</th>
+			<th scope="col">{{coin.admin.form.labels.popularToken}}</th>
+
+			<th scope="col">{{coin.admin.form.labels.rewardsRateFraction}}</th>
+			<th scope="col">{{coin.admin.form.labels.numerator}}</th>
+			<th scope="col">{{coin.admin.form.labels.denominator}}</th>
+		</tr>
+		</thead>
+		<tbody>
+		<tr class="Assets_web3_coin_admin_loading"><td>{{coin.admin.loading}}</td></tr>
+		</tbody>
 		</table>
 	</div>
 	
@@ -513,6 +466,22 @@ Q.Template.set("Assets/web3/coin/admin/pools",
 `
 Template: Assets/web3/coin/admin/pools
 
+`,
+{text: ["Assets/content"]});
+
+Q.Template.set("Assets/web3/coin/admin/pools/row",
+`
+<tr>
+	<th scope="row">{{index}}</th>
+	<td>{{i.tokenErc20}}</td>
+	<td>{{i.duration}}</td>
+	<td>{{i.bonusTokenFraction}}</td>
+	<td>{{i.popularToken}}</td>
+
+	<td>{{i.rewardsRateFraction}}</td>
+	<td>{{i.numerator}}</td>
+	<td>{{i.denominator}}</td>
+</tr>
 `,
 {text: ["Assets/content"]});
 
