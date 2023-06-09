@@ -6,7 +6,7 @@
 
 (function (window, Q, $, undefined) {
 	
-	if (Q.isEmpty(Q["grabMetamaskError"])) {
+	if (Q.isEmpty(Q.grabMetamaskError)) {
 
         // see https://github.com/MetaMask/eth-rpc-errors/blob/main/src/error-constants.ts
         // TODO need to handle most of them
@@ -165,16 +165,16 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 						if (!(state.mainDialog instanceof $)) {
 							state.mainDialog = $(state.mainDialog);
 						}
-					$("button[name=testFill]", state.mainDialog).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
-						state.mainDialog.find("input[name=tokenErc20]").val("0x00010100597b8c232656D76a319b6FF696Ed3293");
-						state.mainDialog.find("input[name=duration]").val("365");
-						state.mainDialog.find("input[name=bonusTokenFraction]").val("0");
-						state.mainDialog.find("input[name=popularToken]").val("0x0000000000000000000000000000000000000000");
-						state.mainDialog.find("input[name=donations]").val("[]");
-						state.mainDialog.find("input[name=rewardsRateFraction]").val("0");
-						state.mainDialog.find("input[name=numerator]").val("1");
-						state.mainDialog.find("input[name=denominator]").val("1");
-					});
+						$("button[name=testFill]", state.mainDialog).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
+							state.mainDialog.find("input[name=tokenErc20]").val("0x00010100597b8c232656D76a319b6FF696Ed3293");
+							state.mainDialog.find("input[name=duration]").val("365");
+							state.mainDialog.find("input[name=bonusTokenFraction]").val("0");
+							state.mainDialog.find("input[name=popularToken]").val("0x0000000000000000000000000000000000000000");
+							state.mainDialog.find("input[name=donations]").val("[]");
+							state.mainDialog.find("input[name=rewardsRateFraction]").val("0");
+							state.mainDialog.find("input[name=numerator]").val("1");
+							state.mainDialog.find("input[name=denominator]").val("1");
+						});
 						// save by URL
 						$("button[name=create]", state.mainDialog).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
 							e.preventDefault();
@@ -233,6 +233,7 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 								return tx.wait();
 							}).then(function (receipt) {
 								console.log(receipt);
+								tool.refreshPoolList();
 							}).catch(function (err) {
                             
                                         
@@ -290,6 +291,7 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 		var $poolListContainer = $toolElement.find('.Assets_web3_coin_admin_poolsContainer');
 		$poolListContainer.addClass("Q_working");
 		
+		var contractPoolF;
 		Q.Users.Web3.getContract(
 			state.abiPath, 
 			{
@@ -307,12 +309,24 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 					readOnly: true,
 					chainId: state.chainId
 				});
-		}).then(function (contractPoolF) {
+		}).then(function (_contractPoolF) {
+			contractPoolF = _contractPoolF
 			return contractPoolF.instances();
-		}).then(function (list) {
+		}).then(function (instanceAddresses) {
 			
-			if (Q.isEmpty(list)) {
+			if (Q.isEmpty(instanceAddresses)) {
 				$toolElement.find('.Assets_web3_coin_admin_poolsList').html('<tr><td>'+tool.text.coin.admin.errmsgs.ThereAreNoPools+'</td></tr>');
+				return instanceAddresses;
+			} else {
+				var p = [];
+				
+				instanceAddresses.forEach(function(i){
+					p.push(contractPoolF.getInstanceInfoByPoolAddress(i));
+				});
+				
+				console.log(instanceAddresses);
+				
+				return Promise.all(p);
 			}
 //			console.log("tool.loggedInUserXid=", tool.loggedInUserXid);
 //			console.log("account=", account);
@@ -327,6 +341,49 @@ Q.Tool.define("Assets/web3/coin/admin", function (options) {
 //                    } else {
 //                        objContainer.hide();
 //                    }
+		}).then(function (instanceInfos) {	
+			if (Q.isEmpty(instanceInfos)) {
+				
+			} else {
+				var table = $toolElement.find('.Assets_web3_coin_admin_poolsList');
+				var thead = $('<thead>');
+				var tbody = $('<tbody>');
+				table.html('');
+				thead.append(`
+					<tr>
+					<th scope="col">#</th>
+					<th scope="col">${tool.text.coin.admin.form.labels.tokenErc20}</th>
+					<th scope="col">${tool.text.coin.admin.form.labels.duration}</th>
+					<th scope="col">${tool.text.coin.admin.form.labels.bonusTokenFraction}</th>
+					<th scope="col">${tool.text.coin.admin.form.labels.popularToken}</th>
+					
+					<th scope="col">${tool.text.coin.admin.form.labels.rewardsRateFraction}</th>
+					<th scope="col">${tool.text.coin.admin.form.labels.numerator}</th>
+					<th scope="col">${tool.text.coin.admin.form.labels.denominator}</th>
+					</tr>
+				`);
+					//<th scope="col">${tool.text.coin.admin.form.labels.donations}</th>
+				table.append(thead);
+				
+				instanceInfos.forEach(function(i, index){
+					tbody.append(`
+					<tr>
+					<th scope="row">${index+1}</th>
+					<td>${i.tokenErc20}</td>
+					<td>${i.duration}</td>
+					<td>${i.bonusTokenFraction}</td>
+					<td>${i.popularToken}</td>
+					
+					<td>${i.rewardsRateFraction}</td>
+					<td>${i.numerator}</td>
+					<td>${i.denominator}</td>
+					</tr>
+					`);
+					//<td>${i.donations}</td>
+				});
+				table.append(tbody);
+
+			}
 		}).finally(function(){
 			$poolListContainer.removeClass("Q_working");
 		});
@@ -387,7 +444,7 @@ Q.Template.set("Assets/web3/coin/admin",
 	
 	<div class="Assets_web3_coin_admin_poolsContainer">
 		<h3>List by pools</h3>
-		<table class="Assets_web3_coin_admin_poolsList">
+		<table class="Assets_web3_coin_admin_poolsList table ">
 		<tr class="Assets_web3_coin_admin_loading"><td>Loading ...</td></tr>
 		</table>
 	</div>
