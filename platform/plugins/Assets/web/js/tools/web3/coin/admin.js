@@ -56,6 +56,46 @@
         }
     }
 	
+	if (Q.isEmpty(Q.isAddress)) {
+		Q.isAddress = function _Q_isAddress(address) {
+			// https://github.com/ethereum/go-ethereum/blob/aa9fff3e68b1def0a9a22009c233150bf9ba481f/jsre/ethereum_js.go#L2295-L2329
+			if (!/^(0x)?[0-9a-f]{40}$/i.test(address)) {
+				// check if it has the basic requirements of an address
+				return false;
+			} else if (/^(0x)?[0-9a-f]{40}$/.test(address) || /^(0x)?[0-9A-F]{40}$/.test(address)) {
+				// If it's all small caps or all all caps, return true
+				return true;
+			} else {
+				// Otherwise check each case
+	//            address = address.replace('0x','');
+	//            var addressHash = Web3.utils.sha3(address.toLowerCase());
+	//            for (var i = 0; i < 40; i++ ) {
+	//                // the nth letter should be uppercase if the nth digit of casemap is 1
+	//                if ((parseInt(addressHash[i], 16) > 7 && address[i].toUpperCase() !== address[i]) || (parseInt(addressHash[i], 16) <= 7 && address[i].toLowerCase() !== address[i])) {
+	//                    return false;
+	//                }
+	//            }
+				return true;
+			}
+
+		}
+	}
+
+	if (Q.isEmpty(Q.validate)) {
+		Q.validate = function _Q_validate(address) {
+
+		}
+		Q.validate.notEmpty = function _Q_validate_notEmpty(input) {
+			return !Q.isEmpty(input)
+		}
+		Q.validate.integer = function _Q_validate_integer(input) {
+			return Q.isInteger(input)
+		}
+		Q.validate.address = function _Q_validate_address(input) {
+			return Q.isAddress(input)
+		}
+	}
+	
 	/**
 	 * @module Assets
 	 */
@@ -70,17 +110,31 @@
 	* @class Assets Community Coin Admin
 	* @constructor
 	* @param {Object} options Override various options for this tool
-	* @param {Object} [options] Override various options for this tool
 	* @param {String} [options.abiPath] ABI path for CommunityCoin contract
 	* @param {String} [options.abiPathPoolF] ABI path for CommunityStakingPoolFactory contract
 	* @param {String} [options.chainId] chainId
 	* @param {String} [options.communityAddress] address of Community contract
 	* @param {String} [options.communityCoinAddress] address od CommunityCoin contract
+	* @param {String} [options.fields] array of defaults for the values
+	*  @param {String} [options.fields.tokenErc20.value]
+	*  @param {Integer} [options.fields.bonusTokenFraction.value]
+	*  @param {String} [options.fields.popularToken.value]
+	*  @param {String} [options.fields.donations.value] array of tuple like [[address, fraction], ...]
+	*  @param {Integer} [options.fields.rewardsRateFraction.value]
+	*  @param {Integer} [options.fields.numerator.value]
+	*  @param {Integer} [options.fields.denominator.value]
 	*/
 	Q.Tool.define("Assets/web3/coin/admin", function (options) {
-
+		
 		var tool = this;
 		var state = this.state;
+		
+		var defaultsValidate = {
+            notEmpty: "<b>%key%</b> cannot be empty", 
+            integer: "<b>%key%</b> must be an integer", 
+            address: "<b>%key%</b> invalid"
+        };
+		
 		var loggedInUser = Q.Users.loggedInUser;
 		if (!loggedInUser) {
 			return console.warn("user not logged in");
@@ -110,6 +164,50 @@
 		if (Q.isEmpty(state.chainId)) {
 			return console.warn("chainId required!");
 		}
+		
+		// fill missed attr fields
+        for (var i in state.fields) {
+            
+            if (typeof(state.fields[i]) === "string") {
+                state.fields[i] = {
+                    value: state.fields[i],
+                    hide: false
+                }
+            } else if (typeof(state.fields[i]) === "object") {
+                let arr;
+                if (Q.isEmpty(state.fields[i]["value"])) {
+                    state.fields[i].value = "";
+                }
+                if (Q.isEmpty(state.fields[i]["hide"])) {
+                    state.fields[i].hide = false;
+                }
+                
+                if (Q.isEmpty(state.fields[i]["validate"])) {
+                    state.fields[i]["validate"] = {};
+                } else if (Array.isArray(state.fields[i]["validate"])) {
+                    
+                    arr = {};
+                    for (var j in state.fields[i]["validate"]) {
+                        let k = state.fields[i]["validate"][j];
+                        if (Q.isEmpty(defaultsValidate[k])) {
+                            console.warn(`validate expr "${k}" have not supported yet`);
+                        } else {
+                            arr[k] = defaultsValidate[k];
+                        }
+                    }
+                    state.fields[i]["validate"] = Object.assign({}, arr);
+                    
+                } else if (typeof(state.fields[i]["validate"]) === "object") {
+                    for (var j in state.fields[i]["validate"]) {
+                        if (Q.isEmpty(defaultsValidate[j])) {
+                            console.warn(`validate expr "${j}" have not supported yet`);
+                        } else {
+                            state.fields[i]["validate"][j] = state.fields[i]["validate"][j];
+                        }
+                    }
+                }
+            }
+        }
 
 		tool.refresh();
 
@@ -120,7 +218,24 @@
 		abiPathPoolF: "Assets/templates/R1/CommunityStakingPool/factory",	// for test predefined in local app.json
 		chainId: null,
 		communityAddress: null,
-		communityCoinAddress: null
+		communityCoinAddress: null,
+		fields: {
+			
+			// key validate is optional
+			// value can be :
+			// - plain array
+			//  validate: ["isEmpty", "isInteger", ...] and try to call Q methods: Q.isEmpty, Q.isInteger ...
+			// - object  like {key => errormessage}
+			//  validate: {"isEmpty": "err msg here to key %key%, "isInteger": "invalid key %key%, ...} and try to call Q methods: Q.isEmpty, Q.isInteger ...
+			tokenErc20: {value: "", hide: false, validate: ["notEmpty", "address"]},
+			duration: {value: "", hide: false, validate: ["notEmpty", "integer"]},
+			bonusTokenFraction: {value: "", hide: false, validate: ["notEmpty", "integer"]},
+			popularToken: {value: "", hide: false, validate: ["notEmpty", "address"]},
+			donations: {value: "", hide: false, validate: ["notEmpty"]},
+			rewardsRateFraction: {value: "", hide: false, validate: ["notEmpty", "integer"]},
+			numerator: {value: "", hide: false, validate: ["notEmpty", "integer"]},
+			denominator: {value: "", hide: false, validate: ["notEmpty", "integer"]}
+		},
 	},
 
 	{ // methods go here
@@ -133,9 +248,10 @@
 				chains: Assets.Web3.chains
 			}, function (err, html) {
 				Q.replace(tool.element, html);
-
-				tool.checkOwner();
-				tool.refreshPoolList();
+				
+                
+				//tool.checkOwner();
+				//tool.refreshPoolList();
 
 				$('.Assets_web3_coin_admin_produce', tool.element).off(Q.Pointer.click).on(Q.Pointer.fastclick, function(){
 					Q.invoke({
@@ -149,6 +265,21 @@
 							if (!($element instanceof $)) {
 								$element = $(arguments[2]);
 							}
+console.log(state.fields);
+							for (var fieldName in state.fields) {
+								var $input = $element.find("input[name="+fieldName+"]");
+								if (state.fields[fieldName].hide) {
+									var $formGroup = $input.closest('.form-group');
+									$formGroup.add($formGroup.prev('label'))
+										.remove();
+								} else {
+									$input.val(
+										state.fields[fieldName].value
+									);
+								}
+							}
+
+
 							// filling test data
 							$("button[name=testFill]", $element).off(Q.Pointer.click).on(Q.Pointer.click, function (e) {
 								$element.find("input[name=tokenErc20]").val("0x00010100597b8c232656D76a319b6FF696Ed3293");
@@ -183,76 +314,112 @@
 								e.stopPropagation();
 
 								$element.addClass("Q_working");
+								
+								
+								// clone state fields
+								let fields = Object.assign({}, state.fields);
+								//collect form
+								for (let key in fields) {
+									// get field values
+									fields[key].userValue = $element.find(`[name='${key}']`).val();
+									// use default values if present
+									fields[key].userValue = fields[key].userValue || fields[key].value;
+								}
+	//							fields.owner.userValue = fields.owner.userValue || Q.Users.Web3.getSelectedXid();
+	//
+	//							fields.beneficiary.userValue = fields.beneficiary.userValue || Q.Users.Web3.getSelectedXid();
 
-								var vals = {};
-								vals.tokenErc20 = $element.find("input[name=tokenErc20]").val();
-								vals.duration = $element.find("input[name=duration]").val();
-								vals.bonusTokenFraction = $element.find("input[name=bonusTokenFraction]").val();
-								vals.popularToken = $element.find("input[name=popularToken]").val();
-								vals.donations = $element.find("input[name=donations]").val();
-								vals.rewardsRateFraction = $element.find("input[name=rewardsRateFraction]").val();
-								vals.numerator = $element.find("input[name=numerator]").val();
-								vals.denominator = $element.find("input[name=denominator]").val();
-
-								// simple check on Q.empty
-								for (var i in vals) {
-
-									if (Q.isEmpty(vals[i])) {
-										$element.find(".form-group").find("label, input, small").removeClass('text-danger');
-										$element.find(`input[name=${i}]`).closest('.form-group').find("label, input, small").addClass('text-danger');
-										$element.removeClass("Q_working");
-										return console.warn(`"${i}" value can not be empty`);
+								// validate (after user input and applied defaults value)
+								var validated = true;
+								for (let key in fields) {
+									for (let validateMethod in fields[key].validate) {
+										if (!Q.validate[validateMethod](fields[key].userValue)) {
+											validated = false;
+											Q.Notices.add({
+												content: fields[key].validate[validateMethod].replace('%key%', key),
+												timeout: 5
+											});
+//											var $input = $element.find("input[name="+key+"]");
+//											$input.closest('.form-group').find('label').after(fields[key].validate[validateMethod].replace('%key%', key));
+											break;
+										}
 									}
 								}
 
-								var contract;
-								Q.Users.Web3.getContract(
-									state.abiPath, 
-									{
-										contractAddress: state.communityCoinAddress,
-										chainId: state.chainId
-									}
-								).then(function (_contract) {
-									contract = _contract;
-									// stupid thing
-									// we cant by pass in etherjs value like "[]". is not array ,because -  Array.isArray("[]") => false
-									// so need to convert to array "[]".split(',')
-									vals.donations = "[]" == vals.donations ?[]:vals.donations.split(',');
+//								var vals = {};
+//								vals.tokenErc20 = $element.find("input[name=tokenErc20]").val();
+//								vals.duration = $element.find("input[name=duration]").val();
+//								vals.bonusTokenFraction = $element.find("input[name=bonusTokenFraction]").val();
+//								vals.popularToken = $element.find("input[name=popularToken]").val();
+//								vals.donations = $element.find("input[name=donations]").val();
+//								vals.rewardsRateFraction = $element.find("input[name=rewardsRateFraction]").val();
+//								vals.numerator = $element.find("input[name=numerator]").val();
+//								vals.denominator = $element.find("input[name=denominator]").val();
 
-									return contract.produce(
-										vals.tokenErc20, //address tokenErc20,
-										vals.duration, //uint64 duration,
-										vals.bonusTokenFraction, //uint64 bonusTokenFraction,
-										vals.popularToken, //address popularToken,
-										vals.donations, //IStructs.StructAddrUint256[] memory donations,
-										vals.rewardsRateFraction, //uint64 rewardsRateFraction,
-										vals.numerator, //uint64 numerator,
-										vals.denominator //uint64 denominator
-									);
+								// simple check on Q.empty
+//								for (var i in vals) {
+//
+//									if (Q.isEmpty(vals[i])) {
+//										$element.find(".form-group").find("label, input, small").removeClass('text-danger');
+//										$element.find(`input[name=${i}]`).closest('.form-group').find("label, input, small").addClass('text-danger');
+//										$element.removeClass("Q_working");
+//										return console.warn(`"${i}" value can not be empty`);
+//									}
+//								}
+								
+								if (validated) {
+									var contract;
+									Q.Users.Web3.getContract(
+										state.abiPath, 
+										{
+											contractAddress: state.communityCoinAddress,
+											chainId: state.chainId
+										}
+									).then(function (_contract) {
+										contract = _contract;
+										// stupid thing
+										// we cant by pass in etherjs value like "[]". is not array ,because -  Array.isArray("[]") => false
+										// so need to convert to array "[]".split(',')
+										//vals.donations = "[]" == vals.donations ?[]:vals.donations.split(',');
+										fields.donations.userValue = "[]" == fields.donations.userValue ?[]:fields.donations.userValue.split(',');
 
-								}).then(function (tx) {
-									return tx.wait();
-								}).then(function (receipt) {
+										return contract.produce(
+											fields.tokenErc20.userValue, //address tokenErc20,
+											fields.duration.userValue, //uint64 duration,
+											fields.bonusTokenFraction.userValue, //uint64 bonusTokenFraction,
+											fields.popularToken.userValue, //address popularToken,
+											fields.donations.userValue, //IStructs.StructAddrUint256[] memory donations,
+											fields.rewardsRateFraction.userValue, //uint64 rewardsRateFraction,
+											fields.numerator.userValue, //uint64 numerator,
+											fields.denominator.userValue //uint64 denominator
+										);
 
-									if (receipt.status == 0) {
-										throw 'Smth unexpected';
-									}
-									tool.refreshPoolList();	
+									}).then(function (tx) {
+										return tx.wait();
+									}).then(function (receipt) {
 
-								}).catch(function (err) {
+										if (receipt.status == 0) {
+											throw 'Smth unexpected';
+										}
+										tool.refreshPoolList();	
 
-									Q.Notices.add({
-										content: Q.grabMetamaskError(err, [contract]),
-										timeout: 5
+									}).catch(function (err) {
+
+										Q.Notices.add({
+											content: Q.grabMetamaskError(err, [contract]),
+											timeout: 5
+										});
+
+
+
+									}).finally(function(){
+										$element.removeClass("Q_working");
+										_close();
 									});
-
-
-
-								}).finally(function(){
+								} else {
 									$element.removeClass("Q_working");
 									_close();
-								});
-
+								}
 							});
 						}
 					});
