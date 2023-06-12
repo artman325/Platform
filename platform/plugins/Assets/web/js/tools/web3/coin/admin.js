@@ -346,10 +346,12 @@
 				return contract.owner();
 			}).then(function (account) {
 
-				if (account != tool.loggedInUserXid) {
-					let objContainer = $(tool.element).find(".Assets_web3_coin_admin_formContainer");
+				if (ethers.utils.getAddress(account) != ethers.utils.getAddress(tool.loggedInUserXid)) {
+
+					let $btnProduce = $(tool.element).find(".Assets_web3_coin_admin_produce");
+					
 					//objContainer.addClass("Users_web3_notAuthorized");
-					objContainer.addClass("Q_disabled");
+					$btnProduce.addClass("Q_disabled");
 				}
 			}).finally(function(){
 				$toolElement.removeClass("Q_working");
