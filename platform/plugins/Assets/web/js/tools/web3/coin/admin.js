@@ -261,69 +261,39 @@
 
 			});
 		},
+		
 		refreshPoolList: function(){
 			var tool = this;
 			var state = this.state;
 			var $toolElement = $(this.element);
 			var $poolListContainer = $toolElement.find('.Assets_web3_coin_admin_poolsContainer');
 			$poolListContainer.addClass("Q_working");
-
-			var contractPoolF;
-			Q.Users.Web3.getContract(
-				state.abiPath, 
-				{
-					contractAddress: state.communityCoinAddress,
-					readOnly: true,
-					chainId: state.chainId
-				}
-			).then(function (contract) {
-				return contract.instanceManagment();
-			}).then(function (stakingPoolFactory) {
-				return Q.Users.Web3.getContract(
-					state.abiPathPoolF, 
-					{
-						contractAddress: stakingPoolFactory,
-						readOnly: true,
-						chainId: state.chainId
-					});
-			}).then(function (_contractPoolF) {
-				contractPoolF = _contractPoolF
-				return contractPoolF.instances();
-			}).then(function (instanceAddresses) {
-
-				if (Q.isEmpty(instanceAddresses)) {
-					$toolElement.find('.Assets_web3_coin_admin_poolsList').html('<tr><td>'+tool.text.coin.admin.errmsgs.ThereAreNoPools+'</td></tr>');
-					return instanceAddresses;
-				} else {
-					var p = [];
-
-					instanceAddresses.forEach(function(i){
-						p.push(contractPoolF.getInstanceInfoByPoolAddress(i));
-					});
-
-					console.log(instanceAddresses);
-
-					return Promise.all(p);
-				}
-
-			}).then(function (instanceInfos) {	
-				if (Q.isEmpty(instanceInfos)) {
-
-				} else {
+			
+			Assets.CommunityCoins.Pools.getAll(
+				state.communityCoinAddress, 
+				null, 
+				state.chainId, 
+				function (err, instanceInfos) {
+					if (err) {
+						return console.warn(err);
+					}
 					var $tbody = $toolElement.find('.Assets_web3_coin_admin_poolsList tbody');
 					$tbody.html('');
-					instanceInfos.forEach(function(i, index){
-						Q.Template.render('Assets/web3/coin/admin/pools/row', {index: index+1, i:i}, function(err, html){
-							$tbody.append(html);
+					if (Q.isEmpty(instanceInfos)) {
+						$tbody.html('<tr><td>'+tool.text.coin.admin.errmsgs.ThereAreNoPools+'</td></tr>');
+					} else {
+						instanceInfos.forEach(function(i, index){
+							Q.Template.render('Assets/web3/coin/admin/pools/row', {index: index+1, i:i}, function(err, html){
+								$tbody.append(html);
+							});
+
 						});
-
-						//<td>${i.donations}</td>
-					});
-
+					}
+					
+					$poolListContainer.removeClass("Q_working");
 				}
-			}).finally(function(){
-				$poolListContainer.removeClass("Q_working");
-			});
+			);
+			
 		},
 		checkOwner: function() {
 			var tool = this;
@@ -411,7 +381,7 @@
 			</div>
 			<div class="form-group">
 				<label>{{coin.admin.form.labels.duration}}</label>
-				<input name="duration" type="text" class="form-control" placeholder="{{coin.admin.placeholders.seconds}}">
+				<input name="duration" type="text" class="form-control" placeholder="{{coin.admin.placeholders.days}}">
 				<small class="form-text text-muted">{{coin.admin.form.small.duration}}</small>
 			</div>
 			<div class="form-group">
