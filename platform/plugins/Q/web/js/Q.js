@@ -5866,29 +5866,75 @@ Q.Links = {
 	 * @return {String}
 	 */
 	whatsApp: function (phoneNumber, message) {
-		return 'whatsapp://send/?phone=' + phoneNumber
-			+ (message ? '&text=' + encodeURIComponent(message) : '');
+		var urlParams = [];
+
+		if (phoneNumber != null) {
+			urlParams.push('phone=' + phoneNumber);
+		}
+		if (message != null) {
+			urlParams.push('text=' + encodeURIComponent(message));
+		}
+
+		return 'whatsapp://send/?' + urlParams.join('&');;
 	},
 	/**
 	 * Generates a link for sharing a link in Telegram
 	 * @static
-	 * @method telegramShare
+	 * @method telegram
 	 * @param {String} [to] Phone number with country code e.g. "+1", or username starting with "@".
 	 *  If a username, then don't supply text or url, it can only open a window to chat.
-	 *  Set this to false and supply text (and optional url) to open Telegram and let the user
+	 *  Or pass null here and supply text (and optional url) to open Telegram and let the user
 	 *  choose Telegram users, channels and groups to share to.
-	 * @param {String} [text] The text to share, can contain a URL, so need to include the next parameter.
-	 * @param {String} [url] Optionally put a URL to share here, which will appear ahead of the text
+	 * @param {String} [text] The text to share. Although it can contain a URL, try using options.url
+	 * @param {Object} [options]
+	 * @param {String} [options.url] Optionally put a URL to share here, which will appear ahead of the text
+	 * @param {String} [options.start] “start” parameter for a bot
+	 * @param {String} [options.startgroup] “startgroup” parameter for a bot
 	 * @return {String}
 	 */
-	telegram: function (to, text, url) {
-		if (to && to[0] === '@') {
-			return 'tg://resolve?domain=' + to.substring(1);
+	telegram: function (to, text, options) {
+		if (!to) { //share URL with some users to select in telegram
+			var link = 'tg://msg_url';
+			if (options && options.url) {
+				link += 'url=' + options.url + '&';
+			}
+			if (text) {
+				link += '&text=' + encodeURIComponent(text);
+			}
+			return link;
 		}
-		return (url
-			? 'tg://msg_url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text)
-			: 'tg://msg?text=' + encodeURIComponent(text)
-		) + (to ? '&to=' + to : '');
+		var urlParams = [];
+		urlParams.push('to=' + to);
+		if (text) {
+			urlParams.push('text=' + encodeURIComponent(text));
+		}
+		if (options.start) {
+			urlParams.push('start=' + encodeURIComponent(options.start));
+		}
+		if (options.startgroup) {
+			urlParams.push('startgroup=' + encodeURIComponent(options.startgroup));
+		}
+		return 'tg://msg?' + urlParams.join('&');
+	},
+	/**
+	 * Generates a link for opening Linkedin profile in native app
+	 * @static
+	 * @method linkedin
+	 * @param {String} [username] Username of profile to open
+	 * @return {String}
+	 */
+	linkedin: function (username) {
+		return 'linkedin://profile/' + username;
+	},
+	/**
+	 * Generates a link for opening chat with User in WeChat app
+	 * @static
+	 * @method wechat
+	 * @param {String} [username] Username to chat with
+	 * @return {String}
+	 */
+	wechat: function (username) {
+		return 'weixin://dl/chat?' + username;
 	},
 	/**
 	 * Generates a link for sharing a link in Skype
@@ -5923,14 +5969,45 @@ Q.Links = {
  * Then call Q.Method.define() on the object containing these.
  * @class Q.Method
  * @constructor
- * @param {Object} Pass an object with any properties to assign to the
- * method function, such as { options: { a: "b" , c: "d" }}
+ * @param {Object} properties pass an object with any properties to assign to the
+ *  method function, such as { options: { a: "b" , c: "d" }}
+ * @param {Object} [options] More information about the method
+ * @param {boolean} [options.isGetter] set to true to indicate that the method will be wrapped with Q.getter()
  */
-Q.Method = function (properties) {
-	Q.extend(this, properties);
+Q.Method = function (properties, options) {
+	this.properties = Q.extend(this, properties);
+	this.__options = options || {};
 };
 
 Q.Method.stub = new Q.Method(); // for backwards compatibility
+
+Q.Method.load = function (o, k, url, closure) {
+	var original = o[k];
+	return new Promise(function (resolve, reject) {
+		Q.require(url, function (exported) {
+			if (exported) {
+				var args = closure ? closure() : [];
+				var m = exported.apply(o, args);
+				if (typeof m === 'function') {
+					o[k] = m;
+				}
+			}
+			var v = o[k];
+			if (v === original) {
+				return reject("Q.Method.define: Must override method '" + k + "'");
+			}
+			for (var property in original) {
+				if (!(property in v)) {
+					v[property] = original[property];
+				}
+			}
+			resolve(v);
+			Q.Method.onLoad.handle(o, k, o[k], closure);
+		}, true);
+	});
+};
+
+Q.Method.onLoad = new Q.Event();
 
 /**
  * Call this on any object that contains new Q.Method()
@@ -5970,31 +6047,22 @@ Q.Method.define = function (o, prefix, closure) {
 		o[k] = function _Q_Method_shim () {
 			var url = Q.url(prefix + '/' + k + '.js');
 			var t = this, a = arguments;
-			return new Promise(function (resolve, reject) {
-				Q.require(url, function (exported) {
-					if (exported) {
-						var args = closure ? closure() : [];
-						var m = exported.apply(o, args);
-						if (typeof m === 'function') {
-							var p = o[k];
-							o[k] = m;
-							for (var property in p) {
-								m[property] = p[property];
-							}
-						}
-					}
-					if (o[k] === _Q_Method_shim) {
-						return reject("Q.Method.define: Must override method '" + k + "'");
-					}
-					try {
-						resolve(o[k].apply(t, a));
-					} catch (e) {
-						reject(e);
-					}
-				});
+			return Q.Method.load(o, k, url, closure)
+			.then(function (f) {
+				return f.apply(t, a);
 			});
+		};
+		Q.extend(o[k], method.properties);
+		if (method.__options.isGetter) {
+			o[k].force = function _Q_Method_force_shim () {
+				var url = Q.url(prefix + '/' + k + '.js');
+				var t = this, a = arguments;
+				return Q.Method.load(o, k, url, closure)
+				.then(function (f) {
+					return f.force.apply(t, a);
+				});
+			};
 		}
-		Q.extend(o[k], method);
 	});
 	return o;
 };
@@ -9438,13 +9506,18 @@ Q.exports = function () {
  * @static
  * @param {String} src The src of the script to load
  * @param {Function} callback Always called asynchronously.
+ * @param {Boolean} synchronously Whether to call the callback synchronously when src was already loaded
  */
-Q.require = function (src, callback) {
+Q.require = function (src, callback, synchronously) {
 	src = Q.url(src);
 	if (_exports[src]) {
-		setTimeout(function () {
+		if (synchronously) {
 			Q.handle(callback, Q, _exports[src]);
-		}, 0);
+		} else {
+			setTimeout(function () {
+				Q.handle(callback, Q, _exports[src]);
+			}, 0);
+		}
 	} else {
 		Q.addScript(src, function _Q_require_callback(err) {
 			if (err) {
